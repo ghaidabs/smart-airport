@@ -1,0 +1,17 @@
+# Python 3.11 ou plus, sous Linux (Ubuntu ou WSL2)
+# socket, threading, argparse, json, heapq : bibliothèque standard
+
+# IA et données (P2)
+numpy
+pandas
+scikit-learn
+joblib
+
+# Graphiques et mesures (toutes les parties)
+matplotlib
+
+# Tests (P4 et toute l'équipe)
+pytest
+
+# Optionnel : affichage console pendant la démo (P1)
+rich
