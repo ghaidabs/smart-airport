@@ -1,0 +1,10 @@
+{
+  "name": "demo_final",
+  "description": "Variante de la démo finale : TU701 +25 min, G12 indisponible, file à 150 personnes.",
+  "load": 1,
+  "events": [
+    {"at": "10:05", "cmd": "delay", "args": ["TU701", 25]},
+    {"at": "10:06", "cmd": "gate_down", "args": ["G12"]},
+    {"at": "10:07", "cmd": "queue", "args": [150]}
+  ]
+}

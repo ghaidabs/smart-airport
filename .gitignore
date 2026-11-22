@@ -1,4 +1,6 @@
-.venv/
 __pycache__/
+*.pyc
 .pytest_cache/
-*.tmp
+.venv/
+logs/*
+!logs/README.md
