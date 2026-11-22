@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import socket
 import struct
+import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -61,11 +62,11 @@ class Message:
     source: str
     dest: str
     payload: dict[str, Any] = field(default_factory=dict)
-    corr_id: str = ""
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    corr_id: str = "" # id of the initial event, copied along the whole chain
+    id: str = field(default_factory=lambda: str(uuid.uuid4())) # unique id of THIS message # unique id of THIS message
     ts_ns: int = 0  # rempli par stamp() juste avant l'envoi
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None: #validation des champs, levée de ProtocolError si invalide
         if self.type not in MessageType.ALL:
             raise ProtocolError(f"type inconnu : {self.type!r}")
         if self.source not in config.SOURCES:
@@ -131,14 +132,21 @@ class Message:
 
 
 _counter = 0
+_counter_lock = threading.Lock()
 _run = uuid.uuid4().hex[:4]
 
 
 def new_corr_id() -> str:
-    """Identifiant d'événement initial, unique par processus : ``evt-<run>-0001``."""
+    """Identifiant d'événement initial, unique par processus : ``evt-<run>-0001``.
+    ``_counter += 1`` n'est pas atomique (lecture, addition, écriture) : deux threads
+    pourraient lire la même valeur et produire le même identifiant. Le verrou rend
+    l'incrément et la lecture indivisibles (section critique).
+    """
     global _counter
-    _counter += 1
-    return f"evt-{_run}-{_counter:04d}"
+    with _counter_lock:
+        _counter += 1
+        n = _counter
+        return f"evt-{_run}-{n:04d}"
 
 
 def _recv_exact(sock: socket.socket, n: int) -> bytes | None:

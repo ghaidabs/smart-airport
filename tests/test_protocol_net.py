@@ -44,6 +44,18 @@ def test_derive_keeps_chain():
     assert child.id != msg.id
 
 
+def test_corr_ids_unique_across_threads():
+    """8 threads créent 2000 chaînes chacun en même temps : aucun doublon."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from common.protocol import new_corr_id
+
+    with ThreadPoolExecutor(8) as pool:
+        batches = list(pool.map(lambda _: [new_corr_id() for _ in range(2000)], range(8)))
+    ids = [i for batch in batches for i in batch]
+    assert len(set(ids)) == len(ids) == 16000
+
+
 def test_framing_survives_split_and_coalesced_reads():
     """Deux trames envoyées octet par octet, puis collées : TCP ne garde pas les limites."""
     a, b = socket.socketpair()
