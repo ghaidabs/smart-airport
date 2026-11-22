@@ -95,7 +95,8 @@ def test_missing_model_fails_fast(tmp_path):
 
 
 def test_reload_picks_new_version_under_concurrent_predictions(model_dir, tmp_path_factory):
-     staging = tmp_path_factory.mktemp("staging")
+    # Le modèle v2 est entraîné AVANT de lancer les threads (pas de contention CPU,
+    staging = tmp_path_factory.mktemp("staging")
     csv = staging / "data2.csv"
     generate(3000, seed=7).to_csv(csv, index=False)
     train(csv, staging, report_dir=None, version="risk-test2", seed=7)
@@ -108,7 +109,7 @@ def test_reload_picks_new_version_under_concurrent_predictions(model_dir, tmp_pa
             try:
                 r = p.predict(DEMO_FLIGHTS["TU701"])
                 assert r["model_version"] in {"risk-test", "risk-test2"} and 0 <= r["risk"] <= 1
-            except Exception as e:   
+            except Exception as e:  
                 errors.append(e)
                 return
             time.sleep(0.0005)  # laisse respirer le thread principal
@@ -121,7 +122,7 @@ def test_reload_picks_new_version_under_concurrent_predictions(model_dir, tmp_pa
         publish_model(staging, model_dir)
         assert p.reload() is True
         time.sleep(0.05)
-    finally:   
+    finally:  
         stop.set()
         for t in threads:
             t.join(timeout=2)

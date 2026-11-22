@@ -1,4 +1,3 @@
-
 import queue
 import threading
 import time
@@ -9,7 +8,7 @@ from ai.generate_data import generate
 from ai.predictor import DEMO_FLIGHTS, RiskPredictor
 from ai.retrain_cloud import next_version, retrain_once
 from ai.train import train
-from nodes.ai_node import AINode
+from ai.node_logic import AINode
 
 
 @pytest.fixture()
@@ -43,8 +42,18 @@ def test_one_result_per_flight_sorted_by_risk_with_annex_fields(node):
     for m in sent:
         assert m["type"] == "RISK_RESULT" and m["source"] == "ai" and m["dest"] == "decision"
         assert m["corr_id"] == "evt-0001" and isinstance(m["ts_ns"], int) and m["id"]
-        assert set(m["payload"]) == {"flight", "risk", "model_version", "inference_ms"}
+        assert {"flight", "risk", "model_version", "inference_ms"} <= set(m["payload"])
+        assert m["payload"]["features"] == DEMO_FLIGHTS[m["payload"]["flight"]]  # recopiées pour le nœud Décision
     assert sent[0]["payload"]["risk"] >= 0.7
+
+
+def test_context_is_echoed_and_send_override_is_used(node):
+    n, sent, _ = node
+    req = make_request(flights=["TU701"])
+    req["payload"]["flights"][0]["context"] = {"gate": None, "connection_gate": "G03"}
+    override = []
+    assert n.handle(req, send=override.append) == 1
+    assert not sent and override[0]["payload"]["context"] == {"gate": None, "connection_gate": "G03"}
 
 
 def test_ignores_other_message_types(node):
