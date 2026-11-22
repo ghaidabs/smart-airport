@@ -10,7 +10,10 @@
 | `retrain_cloud.py` | Tâche T6 : réentraîne et publie `risk-v2`, hors du chemin critique |
 | `models/` | `model.joblib` + `model_meta.json` (version, ordre des variables, métriques) |
 
-Le nœud IA est dans `nodes/ai_node.py`, la politique dans `decision/policy.py`.
+| `node_logic.py` | Logique du nœud IA (T3) : `RISK_REQUEST` -> un `RISK_RESULT` par vol, sans dépendance réseau |
+
+Le nœud réseau est `nodes/ai_node.py` (sous-classe de `BaseNode` de P1), la politique `decision/policy.py`.
+Les `RISK_RESULT` recopient `features` et `context` de la requête : le nœud Décision lit `n_connecting` et `connection_gate` dedans.
 
 ## Commandes (depuis la racine du dépôt)
 
@@ -21,7 +24,7 @@ python -m ai.predictor --demo            # risque des 3 vols du scénario
 python -m ai.predictor --bench           # temps d'inférence -> C de T3
 python -m ai.retrain_cloud --once        # publie risk-v2
 python -m experiments.ai_evaluation      # rapport experiments/results/ai_report.md
-python -m pytest tests/test_ai_*.py -v
+python -m pytest tests/test_ai_*.py -v   # test_ai_integration.py nécessite common/ (P1)
 ```
 
 ## Contrat (annexe B)
