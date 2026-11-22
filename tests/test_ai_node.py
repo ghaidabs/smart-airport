@@ -1,5 +1,4 @@
-"""Tests du nœud IA (P2), SANS réseau : file en entrée, liste en sortie.
-Lancer : python -m pytest tests/test_ai_node.py -v"""
+
 import queue
 import threading
 import time

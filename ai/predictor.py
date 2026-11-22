@@ -1,20 +1,4 @@
-"""Service d'inférence temps réel : ``RiskPredictor`` (contrat de l'annexe B).
 
-    predict(features) -> {"risk": float, "model_version": str, "inference_ms": float}
-
-Propriétés :
-* le modèle est chargé UNE fois, puis un appel de préchauffage évite le coût du
-  premier appel ;
-* ``reload()`` remplace le modèle sans interrompre les prédictions (échange
-  d'un état immuable sous verrou) : c'est ce qu'utilise le nœud IA quand le
-  « Cloud » publie une nouvelle version ;
-* si l'inférence lève une exception, une règle simple prend le relais
-  (``model_version = "fallback-rule"``) : le système temps réel ne s'arrête pas.
-
-Usage en ligne de commande (depuis la racine du dépôt) :
-    python -m ai.predictor --demo     # les 3 vols du scénario
-    python -m ai.predictor --bench    # temps d'inférence sur 1000 appels -> C de T3
-"""
 from __future__ import annotations
 
 import argparse
@@ -36,7 +20,7 @@ LOG = logging.getLogger("ai.predictor")
 DEFAULT_MODEL_DIR = Path(__file__).resolve().parent / "models"
 DEFAULT_REPORT_DIR = Path(__file__).resolve().parent.parent / "experiments" / "results"
 FALLBACK_VERSION = "fallback-rule"
-WCET_MARGIN = 1.2  # C de T3 = max mesuré x 1,2 (Guide P2, tâche 4)
+WCET_MARGIN = 1.2  
 
 
 class _State:
@@ -70,7 +54,6 @@ class RiskPredictor:
         if warmup:
             self._warmup()
 
-    # ------------------------------------------------------------------ chargement
     def _read_meta(self) -> dict:
         return json.loads((self._dir / "model_meta.json").read_text())
 
@@ -127,7 +110,6 @@ class RiskPredictor:
         with self._lock:
             return self._state.version
 
-    # ------------------------------------------------------------------ inférence
     def _vectorize(self, batch: Sequence[Mapping[str, float]], names: list[str]) -> np.ndarray:
         rows = []
         for i, feats in enumerate(batch):
@@ -155,7 +137,7 @@ class RiskPredictor:
         try:
             risks = state.model.predict_proba(X)[:, 1].tolist()
             version = state.version
-        except Exception:  # noqa: BLE001 - repli volontairement large
+        except Exception:  
             LOG.exception("inférence en échec, repli sur la règle")
             risks = [rule_based_risk(f) for f in batch]
             version = FALLBACK_VERSION
@@ -166,7 +148,6 @@ class RiskPredictor:
         """Contrat de l'annexe B pour un seul vol."""
         return self.predict_batch([features])[0]
 
-    # ------------------------------------------------------------------ mesure
     def benchmark(self, n: int = 1000, seed: int = 42) -> dict:
         """Mesure le temps d'inférence unitaire sur ``n`` appels (valeurs variées)."""
         rng = np.random.default_rng(seed)

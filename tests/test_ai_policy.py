@@ -1,4 +1,3 @@
-"""Tests de decision/policy.py (P2). Lancer : pytest tests/test_ai_policy.py -v"""
 import pytest
 
 from decision.policy import BUSES, CRITICAL, FAST_TRACK, NONE, NOTIFY, RESERVE_GATE, WATCH, decide

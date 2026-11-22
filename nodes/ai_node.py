@@ -1,19 +1,3 @@
-"""Nœud IA (port 5002) : reçoit RISK_REQUEST, renvoie RISK_RESULT (tâche T3).
-
-Conception : la LOGIQUE (``AINode``) ne dépend que de dictionnaires au format de
-l'annexe A et de deux fonctions injectées (``send`` et ``log``). Elle ne connaît
-ni les sockets ni les classes de P1/P3/P4 :
-    * testable seule (tests/test_ai_node.py), avec une file et une liste ;
-    * branchable sur ``common.net`` (P1), ``rt.SporadicTask`` (P3) et
-      ``sync.EventBuffer`` (P4) sans modifier la logique.
-
-Choix d'interface (à valider avec P1, voir README du dossier) :
-    * un RISK_RESULT PAR VOL (payload : flight, risk, model_version, inference_ms),
-      conforme à l'annexe A ; les résultats sont envoyés du risque le plus élevé
-      au plus faible, pour que TU701 atteigne le nœud Décision en premier ;
-    * le corr_id de la requête est recopié dans chaque résultat ;
-    * une re-prédiction est une simple nouvelle RISK_REQUEST (même corr_id).
-"""
 from __future__ import annotations
 
 import logging
@@ -29,10 +13,10 @@ from ai.predictor import RiskPredictor
 
 NODE_NAME = "ai"
 DEFAULT_PORT = 5002
-T3_DEADLINE_MS = 200.0  # table des tâches v0 : D de T3
+T3_DEADLINE_MS = 200.0  
 
 SendFn = Callable[[dict], None]
-LogFn = Callable[[str, str, str], None]  # (event, detail, corr_id)
+LogFn = Callable[[str, str, str], None]  
 
 
 def _default_log(event: str, detail: str, corr_id: str) -> None:
@@ -64,7 +48,7 @@ class AINode:
         self._log = log or _default_log
         self.deadline_ms = deadline_ms
 
-    # ------------------------------------------------------------------ traitement
+    #  traitement
     def handle(self, msg: Mapping[str, Any]) -> int:
         """Traite un message ; renvoie le nombre de RISK_RESULT envoyés."""
         corr_id = str(msg.get("corr_id", ""))
@@ -72,7 +56,6 @@ class AINode:
             self._log("IGNORED", f"type inattendu : {msg.get('type')}", corr_id)
             return 0
 
-        # Entre deux requêtes seulement : jamais de rechargement pendant une inférence.
         if self.predictor.reload_if_changed():
             self._log("MODEL_RELOADED", f"version {self.predictor.model_version}", corr_id)
 
@@ -120,7 +103,7 @@ class AINode:
                 self._log("DEADLINE_MISS", f"T3 {elapsed_ms:.1f} ms > D={self.deadline_ms:.0f} ms", corr_id)
         return len(ranked)
 
-    # ------------------------------------------------------------------ boucle
+    #  boucle
     def run(self, inbox: "queue.Queue[dict] | Any", stop: threading.Event, poll_s: float = 0.1) -> None:
         """Boucle de service : ``inbox.get(timeout)`` (queue.Queue ou EventBuffer de P4)."""
         while not stop.is_set():
@@ -128,29 +111,23 @@ class AINode:
                 msg = inbox.get(timeout=poll_s)
             except queue.Empty:
                 continue
-            if msg is None:  # le EventBuffer de P4 peut renvoyer None à l'expiration
+            if msg is None:  
                 continue
             try:
                 self.handle(msg)
-            except Exception:  # noqa: BLE001 - un message défectueux ne doit pas tuer le nœud
+            except Exception:  
                 logging.getLogger("node.ai").exception("échec de traitement du message")
 
 
 def main() -> None:
-    """Point d'entrée du nœud (lancé par run_all.sh). Nécessite le socle réseau de P1."""
-    try:  # noqa: SIM105
-        from common import config, net  # type: ignore[import-not-found]
+    try:  
+        from common import config, net  
     except ImportError as exc:
         raise SystemExit(
-            "common/net.py (P1) est introuvable : le nœud IA attend le socle réseau.\n"
-            "Pour tester la logique seule : pytest tests/test_ai_node.py"
         ) from exc
 
-    # --- Branchement P1 : à ajuster aux signatures réelles de common/net.py -------------
-    # Hypothèses (annexe A et Guide P1) : NodeServer(port, inbox) dépose des dicts ou des
-    # Message dans ``inbox`` ; send(dest, msg) envoie un message.
     predictor = RiskPredictor()
-    inbox: queue.Queue = queue.Queue()  # remplacé par EventBuffer (P4) à l'intégration
+    inbox: queue.Queue = queue.Queue() 
     server = net.NodeServer(getattr(config, "AI_PORT", DEFAULT_PORT), inbox)
     node = AINode(predictor, send=lambda m: net.send(m["dest"], m))
     print(f"[ai     :{DEFAULT_PORT}] prêt · modèle {predictor.model_version} chargé")

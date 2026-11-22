@@ -4,7 +4,7 @@
 # IA et données (P2)
 numpy
 pandas
-scikit-learn
+scikit-learn==1.9.1
 joblib
 
 # Graphiques et mesures (toutes les parties)

@@ -1,14 +1,3 @@
-"""Entraînement du modèle de risque de correspondance manquée.
-
-Étapes : découpage stratifié 70/15/15 -> deux modèles candidats (régression
-logistique de référence, gradient boosting plus riche) -> choix sur la
-validation (score de Brier, car la probabilité sert de priorité) -> évaluation
-sur le test -> sauvegarde ATOMIQUE de ``model.joblib`` et ``model_meta.json``.
-
-Usage (depuis la racine du dépôt) :
-    python -m ai.train
-    python -m ai.train --data ai/data/connections.csv --version risk-v1
-"""
 from __future__ import annotations
 
 import argparse
@@ -21,15 +10,15 @@ from pathlib import Path
 import joblib
 import matplotlib
 
-matplotlib.use("Agg")  # pas d'écran nécessaire (WSL, serveur)
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-from sklearn.calibration import calibration_curve  # noqa: E402
-from sklearn.ensemble import HistGradientBoostingClassifier  # noqa: E402
-from sklearn.inspection import permutation_importance  # noqa: E402
-from sklearn.linear_model import LogisticRegression  # noqa: E402
-from sklearn.metrics import (  # noqa: E402
+matplotlib.use("Agg")  
+import matplotlib.pyplot as plt  
+import numpy as np  
+import pandas as pd  
+from sklearn.calibration import calibration_curve  
+from sklearn.ensemble import HistGradientBoostingClassifier  
+from sklearn.inspection import permutation_importance  
+from sklearn.linear_model import LogisticRegression  
+from sklearn.metrics import (  
     accuracy_score,
     brier_score_loss,
     confusion_matrix,
@@ -39,18 +28,18 @@ from sklearn.metrics import (  # noqa: E402
     recall_score,
     roc_auc_score,
 )
-from sklearn.model_selection import train_test_split  # noqa: E402
-from sklearn.pipeline import make_pipeline  # noqa: E402
-from sklearn.preprocessing import StandardScaler  # noqa: E402
+from sklearn.model_selection import train_test_split  
+from sklearn.pipeline import make_pipeline  
+from sklearn.preprocessing import StandardScaler  
 
-from ai.generate_data import DEFAULT_OUT as DEFAULT_DATA  # noqa: E402
-from ai.generate_data import FEATURES, SEED, TARGET  # noqa: E402
+from ai.generate_data import DEFAULT_OUT as DEFAULT_DATA  
+from ai.generate_data import FEATURES, SEED, TARGET  
 
 AI_DIR = Path(__file__).resolve().parent
 REPO_ROOT = AI_DIR.parent
 DEFAULT_MODEL_DIR = AI_DIR / "models"
 DEFAULT_REPORT_DIR = REPO_ROOT / "experiments" / "results"
-POLICY_THRESHOLDS = (0.4, 0.7)  # seuils SURVEILLÉ / CRITIQUE (decision/policy.py)
+POLICY_THRESHOLDS = (0.4, 0.7)  
 
 
 def build_candidates(seed: int) -> dict:
@@ -147,7 +136,7 @@ def _atomic_write(path: Path, writer) -> None:
     os.close(fd)
     try:
         writer(Path(tmp))
-        os.chmod(tmp, 0o644)  # mkstemp crée en 0600 ; on veut un fichier normal
+        os.chmod(tmp, 0o644)  
         os.replace(tmp, path)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)

@@ -1,27 +1,3 @@
-"""Générateur de données synthétiques : « groupe de passagers en correspondance ».
-
-Chaque ligne décrit une situation connue AU MOMENT DE LA DÉCISION et son issue
-(``missed`` = 1 si la correspondance est manquée).
-
-L'étiquette suit une règle physique (Guide P2, tâche 2) plus un bruit gaussien :
-
-    temps_nécessaire = débarquement(pax_total) + marche(distance / vitesse)
-                       + attente_sécurité + bruit
-    temps_disponible = slack - retard - 10      (l'embarquement ferme 10 min avant)
-    missed           = temps_nécessaire > temps_disponible
-
-La vitesse de marche (50 à 90 m/min) est une variable LATENTE : elle sert à
-fabriquer l'étiquette mais n'est pas fournie au modèle, ce qui introduit une
-incertitude réelle, comme dans un vrai aéroport.
-
-Les variables ``n_connecting``, ``hour`` et ``gate_changed`` ne participent pas
-à la règle : ce sont des variables « neutres » (le modèle doit apprendre à les
-ignorer ; l'importance des variables le vérifiera).
-
-Usage (depuis la racine du dépôt) :
-    python -m ai.generate_data                 # 20 000 lignes, graine 42
-    python -m ai.generate_data --n 5000 --seed 7 --out /tmp/data.csv
-"""
 from __future__ import annotations
 
 import argparse
