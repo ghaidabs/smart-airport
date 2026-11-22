@@ -1,0 +1,10 @@
+{
+  "name": "tu701",
+  "description": "Scénario de référence : TU701 +20 min, G12 indisponible, file de sécurité à 120 personnes.",
+  "load": 1,
+  "events": [
+    {"at": "10:05", "cmd": "delay", "args": ["TU701", 20]},
+    {"at": "10:06", "cmd": "gate_down", "args": ["G12"]},
+    {"at": "10:07", "cmd": "queue", "args": [120]}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "overload_x2",
+  "description": "Démo finale avec deux fois plus d'événements (vols synthétiques TU8xx).",
+  "load": 2,
+  "events": [
+    {"at": "10:05", "cmd": "delay", "args": ["TU701", 25]},
+    {"at": "10:06", "cmd": "gate_down", "args": ["G12"]},
+    {"at": "10:07", "cmd": "queue", "args": [150]}
+  ]
+}
