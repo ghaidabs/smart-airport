@@ -1,25 +1,13 @@
-"""Nœud Décision, port 5003 (squelette P1).
-
-Mock actuel (seuils de départ du guide) :
-
-- ``RISK_RESULT`` : risque >= 0,7 -> CRITIQUE : ``GATE_REQUEST`` au nœud Vols ;
-  0,4 à 0,7 -> SURVEILLE, < 0,4 -> AUCUNE : ``DECISION`` diffusée directement ;
-- ``GATE_ASSIGNED`` : ``PAX_ACTION`` au nœud Passagers (bus si > 600 m) ;
-- ``PAX_DONE`` : ``DECISION`` finale diffusée, avec ``latency_ms`` depuis ``t0_ns`` ;
-- ``SECURITY_ALERT`` : ``DECISION`` CRITIQUE immédiate (bande 0).
-
-À remplacer : ``decision.policy.decide`` (P2) et ``SmartDispatcher`` (P5).
-"""
-
 from __future__ import annotations
 
 import time
 
 from common import config
 from common.protocol import Message, MessageType as T
+from decision.policy import CRITICAL, decide as policy_decide
 from nodes.base_node import BaseNode
 
-GATE_DEADLINE_MS = 100  # D de T4
+GATE_DEADLINE_MS = 100  
 
 
 def latency_ms(msg: Message) -> float | None:
@@ -46,7 +34,8 @@ class DecisionNode(BaseNode):
     def on_risk(self, msg: Message) -> None:
         p = msg.payload
         flight, risk = p["flight"], p["risk"]
-        if risk >= 0.7:
+        policy = policy_decide(flight, risk)  # P2 : niveau et actions selon le risque
+        if policy["level"] == CRITICAL:
             ctx = p.get("context", {})
             self.pending[(msg.corr_id, flight)] = {
                 "risk": risk, "n_connecting": p.get("features", {}).get("n_connecting", 0),
@@ -54,12 +43,9 @@ class DecisionNode(BaseNode):
             self.reply(msg, T.GATE_REQUEST, "flight", {
                 "flight": flight, "near_gate": ctx.get("connection_gate"),
                 "deadline_ns": time.time_ns() + GATE_DEADLINE_MS * 1_000_000})
-        elif risk >= 0.4:
-            self.decide(msg, {"flight": flight, "level": "SURVEILLE", "risk": risk,
-                              "actions": ["notify", "re_predict"]})
-        else:
-            self.decide(msg, {"flight": flight, "level": "AUCUNE", "risk": risk,
-                              "actions": []})
+        else:  # SURVEILLE ou AUCUNE
+            self.decide(msg, {"flight": flight, "level": policy["level"], "risk": risk,
+                              "actions": policy["actions"]})
 
     def on_gate_assigned(self, msg: Message) -> None:
         flight, gate = msg.payload["flight"], msg.payload["gate"]
@@ -72,9 +58,9 @@ class DecisionNode(BaseNode):
             self.decide(msg, {"flight": flight, "level": "CRITIQUE", "risk": ctx["risk"],
                               "actions": ["no_gate", "notify"]})
             return
-        actions = ["fast_track", "notify"]
-        if config.gate_distance(gate, ctx["connection_gate"]) > config.BUS_DISTANCE_THRESHOLD_M:
-            actions.insert(0, "bus")
+        # La distance réelle de la porte attribuée décide du bus (règle de decision/policy.py).
+        distance = config.gate_distance(gate, ctx["connection_gate"])
+        actions = policy_decide(flight, ctx["risk"], {"gate_distance_m": distance})["actions"]
         ctx.update(gate=gate, actions=actions)
         self.reply(msg, T.PAX_ACTION, "passenger", {
             "flight": flight, "group_size": ctx["n_connecting"], "risk": ctx["risk"],
