@@ -1,0 +1,7 @@
+task,name,node,kind,c_ms,period_ms,deadline_ms,criticality,c_source,utilization
+T1,FlightMonitor,flight,periodic,0.4685,100.0,100.0,Haute,mesuré,0.004685
+T2,QueueMonitor,passenger,periodic,0.335,500.0,500.0,Moyenne,mesuré,0.000670
+T3,AIInference,ai,sporadic,20.0,100.0,200.0,Moyenne,v0,0.200000
+T4,DecisionResource,decision,sporadic,10.0,50.0,100.0,Haute,v0,0.200000
+T5,SecurityAlert,passenger,sporadic,0.0436,100.0,50.0,Critique,mesuré,0.000436
+T6,HistoryRetrain,cloud,aperiodic,,,,Basse,v0,0.000000

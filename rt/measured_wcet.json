@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "margin": 1.2,
+    "pinned_cpu0": true,
+    "note": "Corps seuls, envoi r\u00e9seau exclu. T3 et T4 restent en v0."
+  },
+  "tasks": {
+    "T1": {
+      "c_ms": 0.4685,
+      "max_ms": 0.3904,
+      "mean_ms": 0.1022,
+      "min_ms": 0.0911,
+      "runs": 1000
+    },
+    "T2": {
+      "c_ms": 0.335,
+      "max_ms": 0.2792,
+      "mean_ms": 0.0056,
+      "min_ms": 0.0042,
+      "runs": 1000
+    },
+    "T5": {
+      "c_ms": 0.0436,
+      "max_ms": 0.0363,
+      "mean_ms": 0.0042,
+      "min_ms": 0.0035,
+      "runs": 1000
+    }
+  }
+}
