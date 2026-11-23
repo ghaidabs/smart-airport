@@ -1,0 +1,107 @@
+{
+  "version": "risk-v1",
+  "model_type": "logreg",
+  "trained_at": "2026-11-21T18:12:46+00:00",
+  "seed": 42,
+  "features": [
+    "delay_min",
+    "slack_min",
+    "gate_distance_m",
+    "security_wait_min",
+    "n_connecting",
+    "pax_total",
+    "hour",
+    "gate_changed"
+  ],
+  "n_samples": 20000,
+  "split": {
+    "train": 14000,
+    "validation": 3000,
+    "test": 3000
+  },
+  "selection_criterion": "brier (validation)",
+  "candidates": {
+    "logreg": {
+      "validation": {
+        "accuracy": 0.9696666666666667,
+        "precision": 0.9372881355932203,
+        "recall": 0.9110378912685337,
+        "f1": 0.9239766081871345,
+        "roc_auc": 0.9951705654396988,
+        "brier": 0.02207630485574064,
+        "confusion_matrix": {
+          "tn": 2356,
+          "fp": 37,
+          "fn": 54,
+          "tp": 553
+        }
+      },
+      "test": {
+        "accuracy": 0.976,
+        "precision": 0.947986577181208,
+        "recall": 0.9323432343234324,
+        "f1": 0.940099833610649,
+        "roc_auc": 0.9964542820196807,
+        "brier": 0.01890865728877072,
+        "confusion_matrix": {
+          "tn": 2363,
+          "fp": 31,
+          "fn": 41,
+          "tp": 565
+        }
+      }
+    },
+    "hist_gb": {
+      "validation": {
+        "accuracy": 0.9603333333333334,
+        "precision": 0.9192439862542955,
+        "recall": 0.8813838550247117,
+        "f1": 0.8999158957106812,
+        "roc_auc": 0.9931809623207721,
+        "brier": 0.02664380693682013,
+        "confusion_matrix": {
+          "tn": 2346,
+          "fp": 47,
+          "fn": 72,
+          "tp": 535
+        }
+      },
+      "test": {
+        "accuracy": 0.966,
+        "precision": 0.9300341296928327,
+        "recall": 0.8993399339933993,
+        "f1": 0.9144295302013423,
+        "roc_auc": 0.994010741926323,
+        "brier": 0.02491935042359422,
+        "confusion_matrix": {
+          "tn": 2353,
+          "fp": 41,
+          "fn": 61,
+          "tp": 545
+        }
+      }
+    }
+  },
+  "thresholds_test": {
+    "0.4": {
+      "precision": 0.9259259259259259,
+      "recall": 0.9488448844884488,
+      "flagged_share": 0.207
+    },
+    "0.7": {
+      "precision": 0.975925925925926,
+      "recall": 0.8696369636963697,
+      "flagged_share": 0.18
+    }
+  },
+  "feature_importance": {
+    "delay_min": 0.06966026176552494,
+    "slack_min": 0.3377635507911693,
+    "gate_distance_m": 0.023089075824875717,
+    "security_wait_min": 0.05700031155997809,
+    "n_connecting": 4.687185510565683e-06,
+    "pax_total": 0.0056218654446898554,
+    "hour": 1.089081339211706e-05,
+    "gate_changed": 3.1707431395355813e-06
+  }
+}

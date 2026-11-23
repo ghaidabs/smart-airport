@@ -3,4 +3,5 @@ __pycache__/
 .pytest_cache/
 rt/periodic_c/periodic
 .venv/
-.venv/
+logs/*
+!logs/README.md
