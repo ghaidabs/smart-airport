@@ -36,6 +36,7 @@ def system(tmp_path, monkeypatch):
     node.server.start()
     node.setup()
     node.sender = Sender(node.log, {"decision": ("127.0.0.1", decision.port)})
+    node.rt.start()  # T3 traite les RISK_REQUEST dans son propre thread
 
     stop = threading.Event()
 
@@ -53,6 +54,7 @@ def system(tmp_path, monkeypatch):
     finally:
         stop.set()
         thread.join(timeout=2)
+        node.rt.stop(write=False)
         client.close()
         node.sender.close()
         node.server.stop()

@@ -1,6 +1,6 @@
 # decision/
 
-**Responsable : P2** (`policy.py`). Le nœud Décision est dans `nodes/decision_node.py` (P1) ; il appelle `decide()` (P2), le dispatcher dans `sched/` (P5).
+**Responsable : P2** (`policy.py`). Le nœud Décision est dans `nodes/decision_node.py` (P1) ; il appelle `decide()` (P2). Ses messages sont traités en FIFO et mesurés comme jobs de T4, en attendant le dispatcher de `sched/` (P5).
 
 `policy.decide(flight, risk, context) -> {"level", "actions", "priority_hint"}` — fonction pure.
 

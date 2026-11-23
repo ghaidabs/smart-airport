@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-rt/periodic_c/periodic
 .venv/
 logs/*
 !logs/README.md

@@ -117,11 +117,17 @@ class NodeServer:
     def stop(self) -> None:
         """Arrête le serveur.
 
-        Fermer la socket d'écoute débloque ``accept()`` (fin du thread d'acceptation) ;
+        Couper puis fermer la socket d'écoute débloque ``accept()`` (fin du thread d'acceptation) ;
         fermer chaque connexion débloque ``recv()`` (fin des threads de réception).
         """
         self._stopping.set()
         if self._sock is not None:
+            try:
+                # Sous Linux, close() seul ne réveille pas un accept() bloqué : le port
+                # resterait occupé et le nœud ne pourrait pas redémarrer dessus.
+                self._sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass  # déjà fermée, ou non supporté sur une socket d'écoute (Windows)
             self._sock.close()
         with self._conns_lock:
             for conn in self._conns:

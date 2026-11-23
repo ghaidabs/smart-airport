@@ -7,7 +7,9 @@ from common.protocol import Message, MessageType as T
 from decision.policy import CRITICAL, decide as policy_decide
 from nodes.base_node import BaseNode
 
-GATE_DEADLINE_MS = 100  
+GATE_DEADLINE_MS = 100
+#: Messages traités par T4 DecisionResource (FIFO en attendant le dispatcher de P5).
+T4_MESSAGES = frozenset({T.RISK_RESULT, T.GATE_ASSIGNED, T.PAX_DONE, T.SECURITY_ALERT})
 
 
 def latency_ms(msg: Message) -> float | None:
@@ -25,6 +27,12 @@ class DecisionNode(BaseNode):
         self.on(T.GATE_ASSIGNED, self.on_gate_assigned)
         self.on(T.PAX_DONE, self.on_pax_done)
         self.on(T.SECURITY_ALERT, self.on_security_alert)
+
+    def dispatch(self, msg: Message) -> None:
+        if msg.type in T4_MESSAGES:
+            self.rt.run_job("T4", msg, lambda: super(DecisionNode, self).dispatch(msg))
+        else:
+            super().dispatch(msg)
 
     def decide(self, msg: Message, payload: dict) -> None:
         payload["latency_ms"] = latency_ms(msg)

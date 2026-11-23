@@ -7,6 +7,7 @@
 # Puis, dans un autre terminal :
 #   python3 -m scenarios.inject tu701
 #   python3 -m tools.timeline
+#   python3 -m rt.report      # après Ctrl+C : mesures réelles de T1 à T5
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -14,7 +15,7 @@ PYTHON="${PYTHON:-python3}"
 NODES=(flight ai decision passenger)
 
 if [[ "${1:-}" != "--keep-logs" ]]; then
-    rm -f logs/*.csv
+    rm -f logs/*.csv logs/rt/*.csv
 fi
 mkdir -p logs
 

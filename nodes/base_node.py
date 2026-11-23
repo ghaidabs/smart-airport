@@ -2,9 +2,10 @@
 
 Un nœud = un :class:`~common.net.NodeServer` (threads réseau qui remplissent
 ``inbox``) + une boucle de traitement qui lit ``inbox`` et appelle le handler associé
-au type du message. Dans les squelettes, un seul thread traite les messages, donc les
-handlers n'ont pas besoin de verrou. Quand P3/P5 ajoutent des tâches (threads
-périodiques, dispatcher), ce sont eux qui protègent l'état partagé (moniteurs de P4).
+au type du message. Un seul thread exécute les handlers. Les tâches temps réel
+(``self.rt``, voir :mod:`rt.runtime`) tournent dans leurs propres threads : l'état
+qu'elles partagent avec les handlers passe par des objets protégés (``FlightTable``,
+``QueueMonitor``, puis les moniteurs de P4).
 
 Pour brancher sa logique : sous-classer ``BaseNode`` et enregistrer des handlers avec
 ``self.on(MessageType.X, fonction)`` dans ``setup()``.
@@ -21,6 +22,7 @@ from typing import Any, Callable
 from common.logger import CsvLogger
 from common.net import Inbox, NodeServer, Sender
 from common.protocol import Message
+from rt.runtime import NodeRuntime
 
 Handler = Callable[[Message], None]
 
@@ -35,6 +37,7 @@ class BaseNode:
         self.log = CsvLogger(self.name)
         self.sender = Sender(self.log)
         self.server = NodeServer(self.name, self.log, inbox, port=port)
+        self.rt = NodeRuntime(self.name, self.log)
         self._handlers: dict[str, Handler] = {}
         self._stop = threading.Event()
         # Les DECISION diffusées sont déjà journalisées (RECV) ; rien d'autre par défaut.
@@ -91,15 +94,19 @@ class BaseNode:
         threading.current_thread().name = f"{self.name}-main"
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
-        self.server.start()
-        self.setup()
-        print(f"[{self.name}] prêt sur le port {self.server.port}", flush=True)
         try:
+            # Le port n'ouvre qu'une fois le nœud prêt (modèle IA chargé, tâches lancées) :
+            # wait_for_nodes ne peut donc pas annoncer un nœud encore en initialisation.
+            self.setup()
+            self.rt.start()
+            self.server.start()
+            print(f"[{self.name}] prêt sur le port {self.server.port}", flush=True)
             while not self._stop.is_set():
                 msg = self._next(timeout=0.2)
                 if msg is not None:
                     self.dispatch(msg)
         finally:
+            self.rt.stop()
             self.teardown()
             self.server.stop()
             self.sender.close()

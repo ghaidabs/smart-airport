@@ -1,8 +1,9 @@
-"""Mesure du WCET de T1, T2 et T5 : 1000 exécutions seules, max x 1,2.
+"""Mesure du WCET de T1, T2, T3 et T5 : 1000 exécutions seules, max x 1,2.
 
-Chaque exécution suit le chemin le plus coûteux : tous les vols changent pour
-T1, et une alerte part à chaque mesure de T2. L'envoi réseau est un stub, donc
-ces C sont à remesurer après l'intégration de ``common.net`` (P1).
+Chaque exécution suit le chemin le plus coûteux : tous les vols changent pour T1,
+une alerte part à chaque mesure de T2, et T3 prédit un lot de 23 vols avec le vrai
+modèle. L'envoi réseau est un stub : ces C sont ceux des corps de tâches. Les durées
+avec TCP sont données par ``python -m rt.report`` sur le système réel.
 
 Lancement : ``python -m experiments.m3_wcet``
 """
@@ -13,8 +14,11 @@ import argparse
 import csv
 import json
 import time
+from dataclasses import replace
 from typing import Callable
 
+from ai.node_logic import AINode
+from ai.predictor import RiskPredictor
 from experiments.m3_common import RESULTS_DIR, all_flights
 from rt.monitors import FlightMonitor, FlightTable, QueueMonitor, SecurityAlert, make_message
 from rt.system import pin_to_cpu
@@ -59,6 +63,15 @@ def bench_t2(runs: int) -> list[int]:
     return measure(prepare, monitor, runs)
 
 
+def bench_t3(runs: int) -> list[int]:
+    """T3 complet (contrôle de version, validation, inférence) sur 23 vols."""
+    logic = AINode(RiskPredictor(), log=lambda *_: None)
+    flights = [{"flight": r.flight, "features": replace(r, delay_min=20).features(),
+                "context": r.context()} for r in all_flights()]
+    event = make_message("RISK_REQUEST", "flight", "ai", "evt", {"flights": flights})
+    return measure(lambda _index: None, lambda: logic.handle(event, send=lambda _msg: None), runs)
+
+
 def bench_t5(runs: int) -> list[int]:
     """T5 sur une alerte complète."""
     alert = SecurityAlert(lambda _dest, _msg: None)
@@ -75,7 +88,8 @@ def main() -> None:
     pinned = pin_to_cpu(0)
 
     measured = {}
-    for task_id, bench in (("T1", bench_t1), ("T2", bench_t2), ("T5", bench_t5)):
+    for task_id, bench in (("T1", bench_t1), ("T2", bench_t2), ("T3", bench_t3),
+                          ("T5", bench_t5)):
         samples = bench(args.runs)
         max_ms = max(samples) / 1e6
         measured[task_id] = {
@@ -87,7 +101,7 @@ def main() -> None:
         }
     MEASURED_WCET_PATH.write_text(json.dumps({
         "meta": {"margin": MARGIN, "pinned_cpu0": pinned,
-                 "note": "Corps seuls, envoi réseau exclu. T3 et T4 restent en v0."},
+                 "note": "Corps seuls, envoi réseau exclu. T4 reste en v0 (P5)."},
         "tasks": measured,
     }, indent=2) + "\n", encoding="utf-8")
 

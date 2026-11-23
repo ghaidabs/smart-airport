@@ -1,17 +1,18 @@
 """Expérience M3 : 60 s de charge normale, 60 s de charge x 2, Gantt réel de TU701.
 
-Le Gantt est une courte exécution mise en scène : TU703 (T3) et la panne G12
-(T4) sont injectés 16 ms avant le réveil de T1 qui détecte TU701, pour rendre
-visible l'entrelacement de T1, T3 et T4 sur un seul cœur.
+Les phases de charge utilisent le vrai modèle pour T3. Le Gantt est une courte
+exécution mise en scène, avec T3 et T4 à leur C v0 : TU703 (T3) et la panne G12 (T4)
+sont injectés 16 ms avant le réveil de T1 qui détecte TU701, pour rendre visible
+l'entrelacement de T1, T3 et T4 sur un seul cœur.
 
-Lancement : ``python -m experiments.m3_load [--duration 60] [--fifo]``
+Lancement : ``python -m experiments.m3_load [--duration 60] [--fifo] [--out-dir DIR]``
 """
 
 from __future__ import annotations
 
 import argparse
 import time
-from dataclasses import replace
+from pathlib import Path
 
 import matplotlib
 
@@ -20,10 +21,10 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from experiments.m3_common import (RESULTS_DIR, M3System, build_system,  # noqa: E402
                                    generate_load, sleep_until)
-from rt.metrics import NS_PER_MS, format_summary, write_summary_csv  # noqa: E402
+from rt.metrics import NS_PER_MS, JobRecord, format_summary, write_summary_csv  # noqa: E402
 from rt.monitors import make_message  # noqa: E402
-from rt.real_gantt import plot_gantt  # noqa: E402
-from rt.system import pin_to_cpu, try_sched_fifo  # noqa: E402
+from rt.real_gantt import plot_gantt, read_jobs_csv  # noqa: E402
+from rt.system import enable_fifo, pin_to_cpu  # noqa: E402
 from rt.tasks import get_task  # noqa: E402
 
 GANTT_ATTEMPTS = 5
@@ -89,7 +90,7 @@ def staged_tu701() -> tuple[M3System, int, bool]:
     """
     origin = time.perf_counter_ns() + 200 * NS_PER_MS
     release = origin + 10 * 100 * NS_PER_MS
-    system = build_system(origin_ns=origin)
+    system = build_system(origin_ns=origin, real_t3=False)
     system.start()
     sleep_until(release - 30 * NS_PER_MS)
     system.table.set_delay("TU701", 20, "evt-0001")
@@ -119,26 +120,36 @@ def make_gantt() -> None:
         if overlap:
             break
     system.metrics.write_jobs_csv(RESULTS_DIR / "m3_jobs_tu701.csv")
-    # Un job périodique n'a pas de corr_id : on marque le tick de T1 qui a détecté TU701.
-    records = [replace(r, corr_id="evt-0001")
-               if overlap and r.task == "T1" and r.release_ns == release else r
-               for r in system.metrics.records()]
-    plot_gantt(records, RESULTS_DIR / "m3_gantt_tu701.png",
-               t0_ns=release - 30 * NS_PER_MS, t1_ns=release + 270 * NS_PER_MS,
-               tasks=("T1", "T2", "T3", "T4", "T5"), highlight_corr="evt-0001",
-               title="Gantt réel de TU701 (T3 et T4 sont des mocks à C v0)")
+    draw_gantt(system.metrics.records())
     print(f"\nGantt TU701 : recouvrement T1/T3/T4 = {overlap} (essai {attempt})")
+
+
+def draw_gantt(records: list[JobRecord]) -> None:
+    """Trace le Gantt de TU701 à partir de jobs mesurés."""
+    plot_gantt(records, RESULTS_DIR / "m3_gantt_tu701.png", corr_id="evt-0001",
+               title="Retard de TU701 : de la détection à la décision (exécution mise en scène)")
 
 
 def main() -> None:
     """Lance les deux phases, le graphique et le Gantt."""
+    global RESULTS_DIR
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--duration", type=float, default=60.0)
-    parser.add_argument("--fifo", action="store_true", help="tente SCHED_FIFO (sudo)")
+    parser.add_argument("--fifo", action="store_true",
+                        help="priorités SCHED_FIFO par tâche, arrêt si elles sont refusées")
+    parser.add_argument("--out-dir", type=Path, default=RESULTS_DIR,
+                        help="dossier des résultats, pour conserver l'exécution de référence")
+    parser.add_argument("--gantt-only", action="store_true",
+                        help="redessine le Gantt depuis m3_jobs_tu701.csv, sans nouvelle mesure")
     args = parser.parse_args()
+    RESULTS_DIR = args.out_dir
+    if args.gantt_only:
+        draw_gantt(read_jobs_csv(RESULTS_DIR / "m3_jobs_tu701.csv"))
+        return
+    if args.fifo and not enable_fifo():
+        raise SystemExit("SCHED_FIFO refusé : augmenter RLIMIT_RTPRIO (voir rt/README.md).")
     pinned = pin_to_cpu(0)
-    fifo = try_sched_fifo() if args.fifo else False
-    print(f"Épinglé CPU0 : {pinned} ; SCHED_FIFO : {fifo}")
+    print(f"Épinglé CPU0 : {pinned} ; SCHED_FIFO par tâche : {args.fifo}")
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     normal = run_phase("normal", 1.0, args.duration)
     doubled = run_phase("x2", 2.0, args.duration)

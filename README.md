@@ -129,56 +129,74 @@ Format d'un fichier de scénario (`scenarios/tu701.json`) :
 ```console
 $ python3 -m tools.timeline --summary
 
-== evt-e909-0002  (GATE_UNAVAILABLE injector->flight)
-   bout en bout : 1re décision 2.421 ms, dernière 2.978 ms (3 décision(s))
+== evt-7785-0003  (QUEUE_UPDATE injector->passenger)
+   bout en bout : 1re décision 2.904 ms, dernière 62.338 ms (4 décision(s))
    réseau (aller simple) :
-     ai->decision           moy    0.186 ms   max    0.559 ms   n=3
-     flight->ai             moy    0.523 ms   max    0.523 ms   n=1
-     ...
-   traitement par nœud :
-     ai                     moy    1.339 ms   max    1.339 ms   n=1
+     flight->ai             moy    0.219 ms   max    0.219 ms   n=1
+     ai->decision           moy    0.139 ms   max    0.162 ms   n=3
      ...
 ```
 
 - **bout en bout** : de l'envoi de l'événement par l'injecteur à la première et à la
   dernière décision. C'est la réponse à « quel a été le temps de réponse ? ».
 - **réseau** : latence aller simple par lien (appariement `SEND` / `RECV` par id).
-- **traitement par nœud** : temps entre la réception d'un message et l'envoi suivant.
+- **traitement par nœud** : temps entre la réception d'un message et l'envoi suivant. Pour
+  `flight`, il inclut l'attente du prochain réveil de T1 (au plus 100 ms).
 
 ### Chronologie complète ou d'un seul événement
 
 ```console
 $ python3 -m tools.timeline                          # tout
-$ python3 -m tools.timeline --corr evt-e909-0002     # un seul événement
-    t (ms)  nœud      thread           corr_id         événement      détail
-     0.000  injector  MainThread       evt-e909-0002   SEND           GATE_UNAVAILABLE injector->flight id=24f5f5fc
-     0.000  flight    flight-recv2     evt-e909-0002   RECV           GATE_UNAVAILABLE injector->flight id=24f5f5fc
-     0.000  flight    flight-main      evt-e909-0002   GATE_DOWN      {"gate":"G12","flight":"TU701"}
-     ...
-     2.978  decision  decision-main    evt-e909-0002   DECISION       {"flight":"TU701","level":"CRITIQUE","risk":0.87,"gate":"G15",...}
+$ python3 -m tools.timeline --corr evt-7785-0003     # un seul événement
+    t (ms)  nœud      thread           événement      détail
+     0.000  injector  MainThread       SEND           QUEUE_UPDATE injector->passenger
+     2.448  passenger T5               SEND           SECURITY_ALERT passenger->decision
+     2.904  decision  decision-main    DECISION       {"flight":null,"level":"CRITIQUE","actions":["open_security_lane"],...}
+    59.344  flight    T1               T1_DETECT      {"flights":3,"merged_corr_ids":[]}
+    60.726  ai        T3               RISK_RESULT    TU701=0.97 TU703=0.60 TU702=0.00 (inf. 0.5 ms)
+    61.207  flight    flight-main      GATE_RESERVED  {"flight":"TU701","gate":"G15"}
+    62.338  decision  decision-main    DECISION       {"flight":"TU701","level":"CRITIQUE","risk":0.97,"gate":"G15",...}
 $ python3 -m tools.timeline --csv experiments/results/e2e.csv   # export du résumé
+```
+
+### Mesures réelles de T1 à T5
+
+Après **Ctrl+C** dans le terminal de `run_all.sh`, chaque nœud écrit `logs/rt/<nœud>_jobs.csv` :
+
+```console
+$ python3 -m rt.report
+$ python3 -m rt.report --csv experiments/results/live.csv   # export du résumé
 ```
 
 ### Résultat attendu pour `tu701`
 
+Valeurs du modèle `risk-v1` :
+
 | Événement | Décisions |
 | --- | --- |
-| 10:05 TU701 +20 min | TU701 **CRITIQUE** (risque 0,87), garde G12 ; TU703 SURVEILLE (0,65) ; TU702 AUCUNE (0,20) |
-| 10:06 G12 indisponible | TU701 réaffecté à **G15**, 2 bus, coupe-file, notification |
-| 10:07 file à 120 | attente 12 min > seuil : **CRITIQUE**, ouverture d'une file de sécurité |
+| 10:05 TU701 +20 min | TU701 **SURVEILLE** (0,66) ; TU703 AUCUNE (0,08) ; TU702 AUCUNE (0,00) |
+| 10:06 G12 indisponible | TU701 perd sa porte, reste **SURVEILLE** (0,66) ; les autres vols ne changent pas |
+| 10:07 file à 120 | Alerte : ouverture d'une file de sécurité. TU701 **CRITIQUE** (0,97) : **G15**, 2 bus, coupe-file, notification ; TU703 SURVEILLE (0,60) ; TU702 AUCUNE (0,00) |
+
+Comme dans le guide, TU701 devient critique une fois les trois perturbations connues de
+l'IA. Les risques du guide (0,87 / 0,65 / 0,20) sont indicatifs : les niveaux de décision
+sont les mêmes, les valeurs viennent du modèle entraîné.
 
 ## 5. Tests
 
 ```console
 $ python3 -m pytest tests -v
-tests/test_e2e_tu701.py::test_tu701_end_to_end PASSED
-tests/test_protocol_net.py::test_roundtrip_and_prefix PASSED
-tests/test_protocol_net.py::test_validation PASSED
-tests/test_protocol_net.py::test_derive_keeps_chain PASSED
-tests/test_protocol_net.py::test_corr_ids_unique_across_threads PASSED
-tests/test_protocol_net.py::test_framing_survives_split_and_coalesced_reads PASSED
-tests/test_protocol_net.py::test_server_and_sender_with_reconnect PASSED
+...
+89 passed
 ```
+
+| Fichiers | Ce qui est vérifié |
+| --- | --- |
+| `test_protocol_net.py` | Protocole, découpage TCP, reconnexion |
+| `test_ai_*.py` | Modèle, politique, nœuds IA et Décision |
+| `test_rt.py` | Tâches périodiques et sporadiques, moniteurs, table des tâches |
+| `test_rt_wiring.py` | Branchement de T1 à T5 dans les nœuds |
+| `test_e2e_tu701.py` | Scénario complet sur les 4 nœuds et exécution réelle des 5 tâches |
 
 `test_e2e_tu701.py` lance lui-même les 4 nœuds et rejoue `tu701` : **à relancer après
 chaque branchement** de l'intégration en relais. Il est ignoré (`SKIPPED`) si des nœuds
@@ -188,20 +206,27 @@ tournent déjà sur les ports 5001 à 5004 : arrêter `run_all` avant.
 
 | Nœud | Port | Rôle | Tâches |
 | --- | --- | --- | --- |
-| `flight` | 5001 | Vols et ressources (portes) | T1 FlightMonitor |
-| `ai` | 5002 | Inférence du risque | T3 AIInference |
-| `decision` | 5003 | Politique et dispatcher | T4 DecisionResource |
-| `passenger` | 5004 | File de sécurité et bus | T2 QueueMonitor, T5 SecurityAlert |
+| `flight` | 5001 | Vols et ressources (portes) | T1 FlightMonitor, périodique 100 ms |
+| `ai` | 5002 | Inférence du risque | T3 AIInference, sporadique |
+| `decision` | 5003 | Politique et décision | T4 DecisionResource, FIFO mesurée |
+| `passenger` | 5004 | File de sécurité et bus | T2 QueueMonitor (500 ms), T5 SecurityAlert |
 
 Les nœuds sont des **processus séparés** qui échangent des **messages JSON sur TCP**,
 précédés de leur longueur sur 4 octets (annexe A du guide). Chaîne du scénario TU701 :
 
 ```
-injector --FLIGHT_DELAY--> flight --RISK_REQUEST--> ai --RISK_RESULT--> decision
+injector --FLIGHT_DELAY / GATE_UNAVAILABLE--> flight (met à jour FlightTable)
+injector --QUEUE_UPDATE--> passenger --QUEUE_UPDATE(wait_min)--> flight
+                               └-- T5 --SECURITY_ALERT--> decision --DECISION--> tous
+
+T1 (toutes les 100 ms) --RISK_REQUEST--> ai/T3 --RISK_RESULT--> decision/T4
 decision --GATE_REQUEST--> flight --GATE_ASSIGNED--> decision
 decision --PAX_ACTION--> passenger --PAX_DONE--> decision --DECISION--> tous
-injector --QUEUE_UPDATE--> passenger --SECURITY_ALERT--> decision
 ```
+
+T1 envoie au plus une requête par réveil, avec tous les vols. Si plusieurs événements
+arrivent entre deux réveils, ils sont regroupés : la requête garde le `corr_id` et le
+`t0_ns` du plus ancien, et cite les autres dans `merged_corr_ids`.
 
 | Fichier | Contenu |
 | --- | --- |
@@ -210,6 +235,9 @@ injector --QUEUE_UPDATE--> passenger --SECURITY_ALERT--> decision
 | `common/config.py` | Ports, échelle de temps, graine 42, vols et portes du scénario |
 | `common/logger.py` | Journal CSV `ts_ns, node, thread, corr_id, event, detail` |
 | `nodes/base_node.py` | Squelette commun des nœuds |
+| `rt/runtime.py` | Tâches et mesures temps réel de chaque nœud |
+| `rt/monitors.py` | Corps de T1, T2 et T5, état partagé `FlightTable` |
+| `rt/report.py` | Résumé des mesures réelles (`logs/rt/`) |
 | `scenarios/inject.py` | Injecteur pour le professeur |
 | `tools/timeline.py` | Chronologie et temps de bout en bout |
 
@@ -222,14 +250,17 @@ Deux identifiants suivent chaque message :
 
 ## 7. Brancher sa partie
 
-Les nœuds ont aujourd'hui un **comportement factice** (mocks) :
+État de l'intégration en relais :
 
-| Nœud | Mock actuel | Remplacé par |
+| Brique | État | Reste à brancher |
 | --- | --- | --- |
-| `ai` | Risques fixes du scénario (0,87 / 0,65 / 0,20), aléatoires pour les autres vols | `RiskPredictor` (P2) |
-| `flight` | Garde la porte actuelle, sinon première porte libre | T1 (P3), `GateManager` (P4) |
-| `decision` | Seuils fixes 0,7 / 0,4, un seul thread | `policy.decide` (P2), `SmartDispatcher` (P5) |
-| `passenger` | Attente = file / 10 par min, bus de 25 places | T2, T5 (P3), `BusPool` (P4) |
+| Réseau, injecteur, chronologie (P1) | **Branché** | — |
+| `RiskPredictor`, `policy.decide` (P2) | **Branché** | — |
+| T1, T2, T3, T5 et mesures (P3) | **Branché** | — |
+| Portes dans `flight` | Mock : porte actuelle, sinon première libre | `GateManager` (P4) |
+| Bus dans `passenger` | Mock : calcul sans réservation | `BusPool` (P4) |
+| Tampons des nœuds et des tâches | `queue.Queue` / `QueueEventSource` | `EventBuffer` (P4) |
+| T4 dans `decision` | FIFO mesurée, un seul thread | `SmartDispatcher` (P5) |
 
 Pour remplacer un mock : modifier le handler du nœud, ou en enregistrer un nouveau
 dans `setup()`.
@@ -250,7 +281,9 @@ class AINode(BaseNode):
 ```
 
 Le tampon de réception est une `queue.Queue` ; l'`EventBuffer` de P4 la remplace par
-`BaseNode(inbox=EventBuffer(...))`.
+`BaseNode(inbox=EventBuffer(...))`. Une tâche se déclare dans `setup()` avec
+`self.rt.periodic("T1", corps)` ou `self.rt.sporadic("T3", corps)` : `BaseNode` la démarre
+et l'arrête.
 
 Si une brique n'est pas prête lors de l'intégration, le système tourne avec le mock
 correspondant : il reste toujours démontrable.
@@ -262,6 +295,7 @@ correspondant : il reste toujours démontrable.
 | `ÉCHEC (nœud lancé ?)` dans l'injecteur | Les nœuds ne tournent pas : lancer `run_all` dans un autre terminal |
 | `nœuds absents` / `Un nœud n'a pas démarré` | Lire `logs/<nœud>.err` (port déjà utilisé, erreur Python) |
 | Port 5001 à 5004 déjà utilisé | Un ancien nœud tourne encore : `pkill -f nodes.` (Linux) ou fermer ses fenêtres (Windows) |
+| `rt.report` : *Aucune mesure* | Les mesures sont écrites à l'arrêt : faire Ctrl+C dans `run_all.sh`. Sous Windows, `run_all.ps1` force l'arrêt et ne les écrit pas |
 | `test_e2e_tu701` `SKIPPED` | Des nœuds tournent déjà : arrêter `run_all` |
 | `HANDLER_ERROR` dans un journal | Exception dans un handler ; la trace est dans la colonne `detail`, le nœud continue |
 | `run_all.ps1` : *Missing closing '}'* | Fichier réenregistré sans BOM : le réenregistrer en « UTF-8 with BOM » |

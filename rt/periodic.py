@@ -19,6 +19,7 @@ import time
 from typing import Callable
 
 from rt.metrics import NS_PER_MS, JobRecord, MetricsCollector
+from rt.system import apply_task_priority
 
 LOGGER = logging.getLogger(__name__)
 OVERRUN_POLICIES = ("skip", "catch_up")
@@ -75,6 +76,7 @@ class PeriodicTask(threading.Thread):
 
     def run(self) -> None:
         """Boucle périodique : attente absolue, exécution, mesure."""
+        apply_task_priority(self.name)
         if self.origin_ns is None:
             self.origin_ns = time.perf_counter_ns()
         origin = self.origin_ns + self.offset_ns

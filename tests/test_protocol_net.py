@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import queue
 import socket
+import threading
 import struct
 
 import pytest
@@ -61,12 +62,19 @@ def test_framing_survives_split_and_coalesced_reads():
     a, b = socket.socketpair()
     try:
         frames = make(1).stamp().encode() + make(2).stamp().encode()
+        received: list = []
+        # Lecture concurrente : sans elle, le tampon de la socket se remplit et sendall bloque.
+        reader = threading.Thread(
+            target=lambda: received.extend(read_message(b) for _ in range(3)), daemon=True)
+        reader.start()
         for i in range(len(frames)):
             a.sendall(frames[i:i + 1])
-        assert read_message(b).payload["delay_min"] == 21
-        assert read_message(b).payload["delay_min"] == 22
         a.close()
-        assert read_message(b) is None
+        reader.join(timeout=5)
+        assert not reader.is_alive()
+        assert received[0].payload["delay_min"] == 21
+        assert received[1].payload["delay_min"] == 22
+        assert received[2] is None
     finally:
         b.close()
 

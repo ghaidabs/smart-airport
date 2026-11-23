@@ -32,6 +32,13 @@ def ports_busy() -> bool:
     return False
 
 
+def scenario_done(decisions: list[dict]) -> bool:
+    levels = {d["flight"]: d for d in decisions}
+    tu701 = levels.get("TU701", {})
+    return (tu701.get("gate") == "G15" and None in levels
+            and levels.get("TU703", {}).get("level") == "SURVEILLE" and "TU702" in levels)
+
+
 @pytest.mark.skipif(ports_busy(), reason="des nœuds tournent déjà sur 5001-5004")
 def test_tu701_end_to_end(tmp_path):
     env = os.environ | {"SA_LOG_DIR": str(tmp_path), "PYTHONPATH": str(ROOT)}
@@ -48,7 +55,7 @@ def test_tu701_end_to_end(tmp_path):
             with open(tmp_path / "decision.csv", newline="", encoding="utf-8") as f:
                 decisions = [json.loads(r["detail"]) for r in csv.DictReader(f)
                              if r["event"] == "DECISION"]
-            if len(decisions) >= 10:  # 3 x 3 vols + alerte sécurité
+            if scenario_done(decisions):  # T1 peut regrouper les événements d'un même réveil
                 break
             time.sleep(0.1)
     finally:
@@ -67,3 +74,8 @@ def test_tu701_end_to_end(tmp_path):
     assert any(d["flight"] is None and "open_security_lane" in d["actions"] for d in decisions)
     for name in config.NODES:
         assert "HANDLER_ERROR" not in (tmp_path / f"{name}.csv").read_text(encoding="utf-8")
+    jobs = set()
+    for path in (tmp_path / "rt").glob("*_jobs.csv"):
+        with path.open(newline="", encoding="utf-8") as f:
+            jobs |= {r["task"] for r in csv.DictReader(f) if not int(r["error"])}
+    assert {"T1", "T2", "T3", "T4", "T5"} <= jobs  # les 5 tâches ont réellement tourné

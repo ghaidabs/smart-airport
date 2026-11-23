@@ -15,6 +15,7 @@ import time
 from typing import Any, Callable, Protocol
 
 from rt.metrics import NS_PER_MS, JobRecord, MetricsCollector
+from rt.system import apply_task_priority
 
 LOGGER = logging.getLogger(__name__)
 
@@ -103,6 +104,7 @@ class SporadicTask(threading.Thread):
 
     def run(self) -> None:
         """Boucle : attente d'un événement, respect de l'intervalle, exécution."""
+        apply_task_priority(self.name)
         last_start: int | None = None
         job = 0
         while not self._stop_event.is_set():

@@ -12,7 +12,7 @@
 
 | `node_logic.py` | Logique du nœud IA (T3) : `RISK_REQUEST` -> un `RISK_RESULT` par vol, sans dépendance réseau |
 
-Le nœud réseau est `nodes/ai_node.py` (sous-classe de `BaseNode` de P1), la politique `decision/policy.py`.
+Le nœud réseau est `nodes/ai_node.py` (sous-classe de `BaseNode` de P1) : chaque `RISK_REQUEST` active la tâche sporadique T3 dans son propre thread. La politique est dans `decision/policy.py`.
 Les `RISK_RESULT` recopient `features` et `context` de la requête : le nœud Décision lit `n_connecting` et `connection_gate` dedans.
 
 ## Commandes (depuis la racine du dépôt)

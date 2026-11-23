@@ -1,9 +1,8 @@
-"""Système de mesure M3 : vraies tâches T1, T2, T5 et mocks de T3, T4.
+"""Système de mesure M3 : vraies tâches T1, T2, T3, T5 et mock de T4.
 
-T3 (P2) et T4 (P5) ne sont pas encore livrées. Leurs mocks consomment le C v0
-en temps CPU (20 ms et 10 ms), pour que la charge du processeur soit réaliste.
-Le réseau est remplacé par des tampons en mémoire : les temps mesurés ici
-n'incluent donc pas la latence TCP.
+T3 exécute le vrai modèle de P2. T4 (dispatcher de P5) n'est pas livrée : son mock
+consomme le C v0 (10 ms de CPU). Le réseau est remplacé par des tampons en mémoire :
+ces temps n'incluent pas TCP. ``python -m rt.report`` mesure le système réel.
 """
 
 from __future__ import annotations
@@ -14,12 +13,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ai.node_logic import AINode
+from ai.predictor import RiskPredictor
 from rt.metrics import MetricsCollector
 from rt.monitors import (FlightMonitor, FlightRecord, FlightTable, QueueMonitor,
                          SecurityAlert, make_message, reference_flights)
 from rt.periodic import PeriodicTask
 from rt.sporadic import QueueEventSource, SporadicTask
-from rt.tasks import TaskSpec, load_task_table
+from rt.tasks import TASKS_V0, TaskSpec, load_task_table
 
 RESULTS_DIR = Path(__file__).with_name("results")
 SEED = 42
@@ -72,23 +73,34 @@ class M3System:
             task.join(timeout=3)
 
 
-def build_system(origin_ns: int | None = None) -> M3System:
-    """Assemble la chaîne T1 -> T3 -> T4 et la chaîne T2 -> T5."""
+def build_system(origin_ns: int | None = None, real_t3: bool = True) -> M3System:
+    """Assemble la chaîne T1 -> T3 -> T4 et la chaîne T2 -> T5.
+
+    ``real_t3=False`` remplace T3 par son C v0 (20 ms) : seul le Gantt mis en scène
+    l'utilise, car une inférence réelle est trop courte pour y être visible.
+    """
     spec = {task.task_id: task for task in load_task_table()}
+    v0 = {task.task_id: task for task in TASKS_V0}
     metrics = MetricsCollector()
     table = FlightTable(all_flights())
     t3_source = QueueEventSource(1000)
     t4_source = QueueEventSource(1000)
     t5_source = QueueEventSource(1000)
+    logic = AINode(RiskPredictor(), log=lambda *_: None) if real_t3 else None
 
     def send(dest: str, msg: dict) -> None:
         if dest == "ai":
             t3_source.put(msg, timeout=0)
 
-    def t3_mock(event: dict) -> None:
-        busy_cpu(spec["T3"].c_ms)
+    def t3_body(event: dict) -> None:
+        results: list[dict] = []
+        if logic is not None:
+            logic.handle(event, send=results.append)
+        else:
+            busy_cpu(v0["T3"].c_ms)
+        # Un job de T4 par lot : le dispatcher de P5 décidera du traitement par vol.
         t4_source.put(make_message("RISK_RESULT", "ai", "decision", event["corr_id"],
-                                   {"risk": 0.87}), timeout=0)
+                                   {"results": len(results)}), timeout=0)
 
     def t4_mock(_event: dict) -> None:
         busy_cpu(spec["T4"].c_ms)
@@ -97,7 +109,7 @@ def build_system(origin_ns: int | None = None) -> M3System:
     tasks = [
         _periodic(spec["T1"], FlightMonitor(table, send), metrics, origin_ns),
         _periodic(spec["T2"], queue, metrics, origin_ns),
-        _sporadic(spec["T3"], t3_mock, t3_source, metrics),
+        _sporadic(spec["T3"], t3_body, t3_source, metrics),
         _sporadic(spec["T4"], t4_mock, t4_source, metrics),
         _sporadic(spec["T5"], SecurityAlert(lambda _dest, _msg: None), t5_source, metrics),
     ]
