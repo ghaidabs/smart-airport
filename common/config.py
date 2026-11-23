@@ -80,7 +80,7 @@ FLIGHTS: dict[str, dict] = {
               "gate": "G12", "connection_gate": "G03", "hour": 10},
     "TU702": {"pax_total": 180, "n_connecting": 12, "slack_min": 110,
               "gate": "G18", "connection_gate": "G03", "hour": 10},
-    "TU703": {"pax_total": 200, "n_connecting": 20, "slack_min": 70,
+    "TU703": {"pax_total": 200, "n_connecting": 20, "slack_min": 49,
               "gate": "G20", "connection_gate": "G03", "hour": 10},
 }
 

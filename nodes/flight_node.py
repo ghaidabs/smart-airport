@@ -48,6 +48,7 @@ class FlightNode(BaseNode):
         self.security_wait_min = config.DEFAULT_SECURITY_WAIT_MIN
         self.on(T.FLIGHT_DELAY, self.on_delay)
         self.on(T.GATE_UNAVAILABLE, self.on_gate_unavailable)
+        self.on(T.QUEUE_UPDATE, self.on_queue_update)
         self.on(T.GATE_REQUEST, self.on_gate_request)
 
     # --- Événements ----------------------------------------------------
@@ -67,7 +68,16 @@ class FlightNode(BaseNode):
         self.gates[gate] = DOWN
         self.log.log("GATE_DOWN", msg.corr_id, {"gate": gate, "flight": holder})
         if holder not in (None, DOWN):
-            self.flights[holder].update(gate=None, gate_changed=1)
+            # last_gate : le modèle a besoin d'une distance de marche, même sans porte attribuée.
+            self.flights[holder].update(gate=None, last_gate=gate, gate_changed=1)
+            self.request_risk(msg)
+
+    def on_queue_update(self, msg: Message) -> None:
+        """Attente de sécurité envoyée par le nœud Passagers : entrée du modèle IA."""
+        self.security_wait_min = msg.payload["wait_min"]
+        self.log.log("SECURITY_WAIT", msg.corr_id, {"wait_min": self.security_wait_min})
+        if any(f["delay_min"] > DELAY_THRESHOLD_MIN or f["gate_changed"]
+               for f in self.flights.values()):  # une perturbation est en cours
             self.request_risk(msg)
 
     def on_gate_request(self, msg: Message) -> None:
@@ -88,7 +98,7 @@ class FlightNode(BaseNode):
 
     def features(self, f: dict) -> dict:
         """Variables d'entrée du modèle (annexe B)."""
-        gate = f["gate"] or f["connection_gate"]
+        gate = f["gate"] or f.get("last_gate") or f["connection_gate"]
         return {
             "delay_min": f["delay_min"], "slack_min": f["slack_min"],
             "gate_distance_m": config.gate_distance(gate, f["connection_gate"]),

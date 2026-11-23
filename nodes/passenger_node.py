@@ -34,6 +34,8 @@ class PassengerNode(BaseNode):
         self.queue_len = msg.payload["queue_len"]
         wait = round(self.queue_len / (config.SECURITY_RATE_PAX_PER_MIN * OPEN_LANES), 1)
         self.log.log("QUEUE_STATE", msg.corr_id, {"queue_len": self.queue_len, "wait_min": wait})
+        # L'attente de sécurité est une entrée du modèle IA : le nœud Vols doit la connaître.
+        self.reply(msg, T.QUEUE_UPDATE, "flight", {"queue_len": self.queue_len, "wait_min": wait})
         if self.queue_len > config.SECURITY_ALERT_THRESHOLD:
             self.reply(msg, T.SECURITY_ALERT, "decision",
                        {"queue_len": self.queue_len, "wait_min": wait})

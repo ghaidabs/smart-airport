@@ -48,7 +48,7 @@ def test_tu701_end_to_end(tmp_path):
             with open(tmp_path / "decision.csv", newline="", encoding="utf-8") as f:
                 decisions = [json.loads(r["detail"]) for r in csv.DictReader(f)
                              if r["event"] == "DECISION"]
-            if len(decisions) >= 7:  # 2 x 3 vols + alerte sécurité
+            if len(decisions) >= 10:  # 3 x 3 vols + alerte sécurité
                 break
             time.sleep(0.1)
     finally:
